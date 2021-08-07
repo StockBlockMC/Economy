@@ -1,0 +1,10 @@
+version = 1
+
+test_patterns = ["src/main/java/uk/co/hopperelec/mc/**.java"]
+
+[[analyzers]]
+name = "java"
+enabled = true
+
+  [analyzers.meta]
+  runtime_version = "15"
