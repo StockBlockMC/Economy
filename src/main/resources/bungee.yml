@@ -1,0 +1,4 @@
+name: Economy
+version: ${project.version}
+main: uk.co.hopperelec.mc.stockblockeconomy.SBEcoPlugin
+description: Core economy plugin for StockBlock
