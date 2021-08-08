@@ -1,34 +1,32 @@
 package uk.co.hopperelec.mc.stockblockeconomy;
 
+import co.aikar.commands.BungeeCommandManager;
+import co.aikar.commands.InvalidCommandArgument;
+import co.aikar.commands.MessageKeys;
 import com.mysql.cj.jdbc.MysqlConnectionPoolDataSource;
 import com.mysql.cj.jdbc.MysqlDataSource;
 import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.ProxyServer;
-import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.event.PlayerDisconnectEvent;
 import net.md_5.bungee.api.event.PostLoginEvent;
 import net.md_5.bungee.api.event.ServerConnectedEvent;
-import net.md_5.bungee.api.event.TabCompleteEvent;
 import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.config.Configuration;
 import net.md_5.bungee.config.ConfigurationProvider;
 import net.md_5.bungee.config.YamlConfiguration;
 import net.md_5.bungee.event.EventHandler;
-import uk.co.hopperelec.mc.stockblockeconomy.commands.*;
 
 import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.util.Arrays;
-import java.util.List;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
 
 public final class SBEcoPlugin extends Plugin implements Listener {
     public MySQLHandler mysqlHandler;
-    private final List<String> subcommands = Arrays.asList("exchangerate", "exchange", "rate", "list", "economies", "all", "balance", "bal", "balances", "bals", "top", "baltop", "balancetop","leaderboard","balanceleaderboard");
 
     @Override
     public void onEnable() {
@@ -55,17 +53,24 @@ public final class SBEcoPlugin extends Plugin implements Listener {
         }
 
         mysqlHandler = new MySQLHandler(this, mysql);
-        CommandHandler commandHandler = new CommandHandler(this);
-        ProxyServer.getInstance().getPluginManager().registerCommand(this, new EcoCommand(commandHandler));
-        ProxyServer.getInstance().getPluginManager().registerCommand(this, new BalCommand(commandHandler::balance));
-        ProxyServer.getInstance().getPluginManager().registerCommand(this, new BalsCommand(commandHandler::balances));
-        ProxyServer.getInstance().getPluginManager().registerCommand(this, new BaltopCommand(commandHandler::balanceleaderboard));
-        ProxyServer.getInstance().getPluginManager().registerCommand(this, new PayCommand(commandHandler::pay));
+        BungeeCommandManager commandManager = new BungeeCommandManager(this);
+        commandManager.getCommandCompletions().registerAsyncCompletion("economy", c -> mysqlHandler.economies.keySet());
+        commandManager.getCommandCompletions().registerAsyncCompletion("player", c -> getProxy().getPlayers().stream().map(CommandSender::getName).collect(Collectors.toList()));
+        commandManager.getCommandContexts().registerContext(Payment.class, c -> {
+            Payment res = new Payment();
+            String arg = c.popLastArg();
+            res.all = arg.equalsIgnoreCase("all");
+            if (!res.all) {
+                try {
+                    res.value = Integer.parseInt(arg);
+                } catch (NumberFormatException e) {
+                    throw new InvalidCommandArgument(MessageKeys.MUST_BE_A_NUMBER, "{num}", arg, "number.", "number or 'all'.");
+                }
+            }
+            return res;
+        });
+        commandManager.registerCommand(new SBEcoCommand(this));
         ProxyServer.getInstance().getPluginManager().registerListener(this, this);
-    }
-
-    public interface SubCommandHandler {
-        void op(CommandSender sender, String[] args);
     }
 
     @EventHandler
@@ -107,73 +112,5 @@ public final class SBEcoPlugin extends Plugin implements Listener {
             stmt.setTimestamp(1,new Timestamp(System.currentTimeMillis()));
             stmt.setString(2,event.getPlayer().getUniqueId().toString());
         }, null, true);
-    }
-
-    @EventHandler
-    public void onTabComplete(TabCompleteEvent event) {
-        List<String> args = Arrays.asList(event.getCursor().split(" "));
-        String lastArg;
-        if (event.getCursor().endsWith(" ")) lastArg = "";
-        else lastArg = args.get(args.size()-1).toLowerCase();
-
-        switch (args.get(0)) {
-            case "eco":
-            case "economy":
-            case "stockblock":
-                if (args.size() > 2 || (args.size() == 2 && lastArg.equals(""))) {
-                    switch (args.get(1).toLowerCase()) {
-                        case "exchangerate":
-                        case "exchange":
-                        case "rate":
-                        case "top":
-                        case "baltop":
-                        case "balancetop":
-                        case "leaderboard":
-                        case "balanceleaderboard":
-                            for (String economy : mysqlHandler.economies.keySet())
-                                if (!economy.equals(lastArg) && economy.toLowerCase().startsWith(lastArg)) event.getSuggestions().add(economy);
-                            break;
-
-                        case "pay":
-                        case "send":
-                        case "give":
-                            event.getSuggestions().add("all");
-
-                        case "bal":
-                        case "balance":
-                            for (String economy : mysqlHandler.economies.keySet())
-                                if (!economy.equals(lastArg) && economy.toLowerCase().startsWith(lastArg)) event.getSuggestions().add(economy);
-
-                        case "bals":
-                        case "balances":
-                            for (ProxiedPlayer player : getProxy().getPlayers())
-                                if (!player.getName().equals(lastArg) && player.getName().toLowerCase().startsWith(lastArg)) event.getSuggestions().add(player.getName());
-                            break;
-                    }
-                } else if (args.size() == 2) {
-                    for (String subcommand : subcommands) {
-                        if (!subcommand.equals(lastArg) && subcommand.toLowerCase().startsWith(lastArg)) event.getSuggestions().add(subcommand);
-                    }
-                } else if (lastArg.equals("")) event.getSuggestions().addAll(subcommands);
-
-            case "baltop":
-            case "balancetop":
-                for (String economy : mysqlHandler.economies.keySet())
-                    if (!economy.equals(lastArg) && economy.toLowerCase().startsWith(lastArg)) event.getSuggestions().add(economy);
-                break;
-
-            case "pay":
-                event.getSuggestions().add("all");
-
-            case "bal":
-            case "balance":
-                for (String economy : mysqlHandler.economies.keySet())
-                    if (!economy.equals(lastArg) && economy.toLowerCase().startsWith(lastArg)) event.getSuggestions().add(economy);
-
-            case "bals":
-            case "balances":
-                for (ProxiedPlayer player : getProxy().getPlayers())
-                    if (!player.getName().equals(lastArg) && player.getName().toLowerCase().startsWith(lastArg)) event.getSuggestions().add(player.getName());
-        }
     }
 }
