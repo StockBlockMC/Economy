@@ -5,7 +5,6 @@ import co.aikar.commands.InvalidCommandArgument;
 import co.aikar.commands.MessageKeys;
 import com.mysql.cj.jdbc.MysqlConnectionPoolDataSource;
 import com.mysql.cj.jdbc.MysqlDataSource;
-import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.event.PlayerDisconnectEvent;
 import net.md_5.bungee.api.event.PostLoginEvent;
@@ -22,8 +21,8 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.util.logging.Level;
-import java.util.stream.Collectors;
 
 public final class SBEcoPlugin extends Plugin implements Listener {
     public MySQLHandler mysqlHandler;
@@ -55,7 +54,7 @@ public final class SBEcoPlugin extends Plugin implements Listener {
         mysqlHandler = new MySQLHandler(this, mysql);
         BungeeCommandManager commandManager = new BungeeCommandManager(this);
         commandManager.getCommandCompletions().registerAsyncCompletion("economy", c -> mysqlHandler.economies.keySet());
-        commandManager.getCommandCompletions().registerAsyncCompletion("player", c -> getProxy().getPlayers().stream().map(CommandSender::getName).collect(Collectors.toList()));
+        commandManager.getCommandCompletions().registerAsyncCompletion("moneyvalues", c -> Arrays.stream("all|1000|5000|10000|30000|60000|100000|120000|360000|720000|1000000|1440000".split("\\|")).toList());
         commandManager.getCommandContexts().registerContext(Payment.class, c -> {
             Payment res = new Payment();
             String arg = c.popLastArg();

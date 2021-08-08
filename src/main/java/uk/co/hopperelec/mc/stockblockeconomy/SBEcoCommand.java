@@ -23,6 +23,7 @@ public final class SBEcoCommand extends BaseCommand {
     @Subcommand("exchangerate|rate")
     @Description("Returns the exchange rate between two economies")
     @Syntax("(economy1) [economy2]")
+    @CommandCompletion("@economy @economy")
     public void exchangerate(CommandSender sender, @Values("@economy") String economy1, @Values("@economy") @Default(defaultEconomy) String economy2) {
         if (economy1.equals(economy2)) sender.sendMessage(new TextComponent("§cYou can't exchange from an economy to itself!"));
         else {
@@ -47,7 +48,8 @@ public final class SBEcoCommand extends BaseCommand {
     @CommandAlias("balance|bal")
     @Description("Returns a player's balance in an economy")
     @Syntax("[economy] [playername]")
-    public void balance(CommandSender sender, @Values("@economy") @Default(defaultEconomy) String economy, @Values("@player") @Optional String playername) {
+    @CommandCompletion("@economy @players")
+    public void balance(CommandSender sender, @Values("@economy") @Default(defaultEconomy) String economy, @Optional String playername) {
         if (playername == null) {
             if (sender instanceof ProxiedPlayer) playername = sender.getName();
             else throw new InvalidCommandArgument("Error: playername is not optional for console");
@@ -60,9 +62,13 @@ public final class SBEcoCommand extends BaseCommand {
     @CommandAlias("balances|bals")
     @Description("Returns a player's balance in all economies they are active in")
     @Syntax("(playername)")
-    public void balances(CommandSender sender, @Values("@player") @Optional String playername) {
+    @CommandCompletion("@players")
+    public void balances(CommandSender sender, @Optional String playername) {
         final String finalPlayername;
-        if (playername == null) finalPlayername = sender.getName();
+        if (playername == null) {
+            if (sender instanceof ProxiedPlayer) finalPlayername = sender.getName();
+            else throw new InvalidCommandArgument("Error: playername is not optional for console");
+        }
         else finalPlayername = playername;
         plugin.mysqlHandler.getBalance(sender, finalPlayername, results -> {
             final StringBuilder listOfResults = new StringBuilder(results.getString("economy")+": $"+results.getInt("balance"));
@@ -75,6 +81,7 @@ public final class SBEcoCommand extends BaseCommand {
     @CommandAlias("balancetop|baltop")
     @Description("Returns a list of the top 10 balances in an economy")
     @Syntax("(economy)")
+    @CommandCompletion("@economy")
     public void balanceleaderboard(CommandSender sender, @Values("@economy") @Default(defaultEconomy) String economy) {
         plugin.mysqlHandler.runSQL("SELECT players.lastname AS player,balances.value AS balance FROM balances INNER JOIN economies ON balances.economy_id = economies.id INNER JOIN players ON balances.player = players.uuid WHERE economies.name = ? ORDER BY balances.value DESC LIMIT 10",stmt -> stmt.setString(1,economy),results -> {
             final StringBuilder listOfResults = new StringBuilder("\n");
@@ -87,7 +94,8 @@ public final class SBEcoCommand extends BaseCommand {
     @CommandAlias("pay")
     @Description("Transfers money in an economy to another online player")
     @Syntax("(player) (value|all) [economy]")
-    public void pay(CommandSender sender, OnlinePlayer player, Payment value, @Optional @Values("@economy") @Default(defaultEconomy) String economy) {
+    @CommandCompletion("@players @moneyvalues @economy")
+    public void pay(ProxiedPlayer sender, OnlinePlayer player, Payment value, @Optional @Values("@economy") @Default(defaultEconomy) String economy) {
         if (!value.all & value.value < 1) sender.sendMessage(new TextComponent("§cValue must be a positive number!"));
         else {
             plugin.mysqlHandler.getBalance(sender,sender.getName(),results -> {
@@ -97,7 +105,7 @@ public final class SBEcoCommand extends BaseCommand {
                     sender.sendMessage(new TextComponent("§cYou do not have $"+value.value));
                     return;
                 }
-                plugin.mysqlHandler.makeTransaction((ProxiedPlayer)sender,economy,"-",value.value,"Payment to "+player.getPlayer().getName(),false);
+                plugin.mysqlHandler.makeTransaction(sender,economy,"-",value.value,"Payment to "+player.getPlayer().getName(),false);
                 plugin.mysqlHandler.makeTransaction(player.getPlayer(),economy,"+",value.value,"Payment from "+sender.getName(),false);
             },economy);
         }
