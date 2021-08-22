@@ -38,6 +38,7 @@ public final class SBEcoPlugin extends Plugin implements Listener {
         }
 
         MysqlDataSource mysql = new MysqlConnectionPoolDataSource();
+        mysql.setServerName(databaseConfig.getString("host"));
         mysql.setDatabaseName(databaseConfig.getString("name"));
         mysql.setUser(databaseConfig.getString("user"));
         mysql.setPassword(databaseConfig.getString("password"));
